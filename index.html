@@ -1,0 +1,668 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PickleVolleyDink - Scorekeeper</title>
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Alpine.js -->
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"
+    ></script>
+
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+      @keyframes flashRed {
+        0% {
+          background-color: inherit;
+        }
+        50% {
+          background-color: rgb(239, 68, 68);
+        }
+        100% {
+          background-color: inherit;
+        }
+      }
+      .animate-flash-red {
+        animation: flashRed 0.6s ease-in-out;
+      }
+      .border-dark-emerald {
+        border-color: rgb(5, 122, 85) !important;
+        border-width: 2px !important;
+      }
+      .border-dark-sky {
+        border-color: rgb(12, 74, 110) !important;
+        border-width: 2px !important;
+      }
+      .scale-up {
+        transform: scale(1.05);
+        transition: transform 0.2s ease-in-out;
+      }
+    </style>
+  </head>
+
+  <body class="bg-gray-50 flex flex-col">
+    <div class="flex flex-col h-screen w-screen overflow-hidden">
+      <!-- Main Content -->
+      <main class="flex-1 overflow-auto max-w-4xl mx-auto w-full">
+        <div
+          x-data="scoreApp()"
+          x-init="load()"
+          class="bg-white rounded-lg shadow p-4"
+        >
+          <div class="flex flex-col sm:flex-row sm:items-start gap-6">
+            <!-- Score panel -->
+            <section class="flex-1">
+              <div class="grid grid-cols-2 gap-4 items-center">
+                <div
+                  :class="teamPanelClasses(0)"
+                  class="p-4 rounded-lg border text-center"
+                >
+                  <div class="text-sm text-gray-500">Team A</div>
+                  <div x-text="teams[0].name" class="font-semibold"></div>
+                  <div
+                    class="mt-4 text-6xl font-extrabold text-gray-900"
+                    x-text="teams[0].points"
+                  ></div>
+                  <div class="mt-3 flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      @click="addPoint(0)"
+                      :disabled="locked"
+                      aria-label="Add point to Team A (key: 1)"
+                      :class="teamButtonClasses(0)"
+                      class="font-bold py-2 px-4 rounded-lg disabled:opacity-50"
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      @click="decrementPoint(0)"
+                      aria-label="Remove point from Team A"
+                      class="bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-2 px-3 rounded-lg"
+                    >
+                      -
+                    </button>
+                  </div>
+                </div>
+
+                <div
+                  :class="teamPanelClasses(1)"
+                  class="p-4 rounded-lg border text-center"
+                >
+                  <div class="text-sm text-gray-500">Team B</div>
+                  <div x-text="teams[1].name" class="font-semibold"></div>
+                  <div
+                    class="mt-4 text-6xl font-extrabold text-gray-900"
+                    x-text="teams[1].points"
+                  ></div>
+                  <div class="mt-3 flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      @click="addPoint(1)"
+                      :disabled="locked"
+                      aria-label="Add point to Team B (key: 2)"
+                      :class="teamButtonClasses(1)"
+                      class="font-bold py-2 px-4 rounded-lg disabled:opacity-50"
+                    >
+                      +
+                    </button>
+                    <button
+                      type="button"
+                      @click="decrementPoint(1)"
+                      aria-label="Remove point from Team B"
+                      class="bg-yellow-400 hover:bg-yellow-500 text-white font-bold py-2 px-3 rounded-lg"
+                    >
+                      -
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Controls -->
+              <div class="mt-6 flex flex-wrap items-center gap-3">
+                <button
+                  type="button"
+                  @click="lostServe()"
+                  aria-label="Mark serve as lost (current server loses rally) (key: 3)"
+                  class="bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-3 rounded"
+                >
+                  Lost Serve
+                </button>
+                <button
+                  type="button"
+                  @click="undo()"
+                  aria-label="Undo last action (key: Z)"
+                  class="bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-2 px-3 rounded"
+                >
+                  Undo
+                </button>
+                <button
+                  type="button"
+                  @click="resetMatch()"
+                  aria-label="Reset match (key: R)"
+                  class="bg-red-500 hover:bg-red-600 text-white font-semibold py-2 px-3 rounded"
+                >
+                  Reset
+                </button>
+
+                <div
+                  class="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700"
+                >
+                  <div class="font-semibold" x-text="gameSettingsLabel()"></div>
+                  <div x-show="!locked" x-text="currentServerLabel()"></div>
+                  <div
+                    x-show="locked"
+                    x-text="winnerSummary()"
+                    class="font-bold"
+                  ></div>
+                </div>
+              </div>
+
+              <div class="hidden sm:block mt-3 text-xs text-gray-500">
+                Keyboard: 1 = Team A +1, 2 = Team B +1, 3 = Lost Serve, Z =
+                Undo, R = Reset
+              </div>
+
+              <div class="hidden sm:block py-4">
+                <a
+                  href="https://github.com/breakfastdrink/PickleVolleyDink"
+                  target="_blank"
+                  class="text-2xl font-bold text-gray-900 hover:text-blue-600"
+                  >PickleVolleyDink</a
+                >
+                <span class="text-sm text-gray-600">Simple scorekeeper</span>
+              </div>
+            </section>
+
+            <!-- Settings / History -->
+            <aside class="sm:w-64">
+              <div class="p-4 border rounded-lg bg-gray-50">
+                <button
+                  type="button"
+                  @click="showSettings = !showSettings"
+                  class="flex w-full items-center justify-between font-semibold text-gray-800"
+                >
+                  <span>Settings</span>
+                  <span x-text="showSettings ? '-' : '+'"></span>
+                </button>
+                <div x-show="showSettings" class="mt-3">
+                  <div>
+                    <label class="block text-sm text-gray-600"
+                      >Match Type</label
+                    >
+                    <select
+                      x-model="matchType"
+                      aria-label="Match type"
+                      class="mt-1 w-full rounded border-gray-200"
+                    >
+                      <option value="doubles">Doubles</option>
+                      <option value="singles">Singles</option>
+                    </select>
+                  </div>
+                  <div class="mt-3">
+                    <label class="block text-sm text-gray-600">Game To</label>
+                    <select
+                      x-model.number="gameTo"
+                      aria-label="Game length in points"
+                      class="mt-1 w-full rounded border-gray-200"
+                    >
+                      <option value="7">7</option>
+                      <option value="9">9</option>
+                      <option value="11">11</option>
+                      <option value="15">15</option>
+                    </select>
+                  </div>
+                  <!-- Starting Team defaults to Team A -->
+                  <!-- <div class="mt-3">
+                  <label class="block text-sm text-gray-600">Starting Team</label>
+                  <select x-model.number="startingTeam" @change="setStartingTeam()" aria-label="Starting team"
+                    class="mt-1 w-full rounded border-gray-200">
+                    <option :value="0" x-text="teams[0].name"></option>
+                    <option :value="1" x-text="teams[1].name"></option>
+                  </select>
+                </div> -->
+                  <div class="mt-3">
+                    <label class="block text-sm text-gray-600"
+                      >Win Condition</label
+                    >
+                    <select
+                      x-model="winMode"
+                      aria-label="Win condition"
+                      class="mt-1 w-full rounded border-gray-200"
+                    >
+                      <option value="winBy2">Win by 2</option>
+                      <option value="hardLimit">Hard Limit</option>
+                    </select>
+                  </div>
+                  <div class="mt-3">
+                    <label class="block text-sm text-gray-600"
+                      >Team Names</label
+                    >
+                    <input
+                      x-model="teams[0].name"
+                      aria-label="Team A name"
+                      class="mt-1 w-full rounded border-gray-200"
+                      placeholder="Team A"
+                    />
+                    <input
+                      x-model="teams[1].name"
+                      aria-label="Team B name"
+                      class="mt-2 w-full rounded border-gray-200"
+                      placeholder="Team B"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div class="mt-4 p-4 border rounded-lg bg-white">
+                <button
+                  type="button"
+                  @click="showHistory = !showHistory"
+                  class="flex w-full items-center justify-between font-semibold text-gray-800"
+                >
+                  <span>History</span>
+                  <span x-text="showHistory ? '-' : '+'"></span>
+                </button>
+                <div
+                  x-show="showHistory"
+                  class="mt-2 max-h-40 overflow-auto text-sm text-gray-700"
+                >
+                  <template x-for="(h, i) in history" :key="i">
+                    <div class="py-1 border-b border-gray-100 text-xs">
+                      <span x-text="h.label"></span>
+                    </div>
+                  </template>
+                  <div x-show="history.length===0" class="text-gray-400">
+                    No actions yet
+                  </div>
+                </div>
+                <div class="mt-3 text-right">
+                  <button
+                    type="button"
+                    @click="clearHistory()"
+                    class="text-xs text-red-600 hover:text-red-800"
+                  >
+                    Clear history
+                  </button>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <script>
+      function scoreApp() {
+        return {
+          // Team names list for random selection
+          teamNamesList: [
+            "Kitchen Sync",
+            "Dink Positive",
+            "MidCourtCrisis",
+            "Volley Llamas",
+            "Outta My NVZ",
+            "In A Pickle",
+            "Big Dinks",
+            "Net Assets",
+            "Dink&Disrupt",
+            "Bangers&Mash",
+            "Zero-Zero-Two",
+            "Pickle Me Elmo",
+            "BigDinkEnergy",
+            "Golden Gooses",
+            "Dink Buddies",
+            "Paddle Pals",
+            "Nasty Nelsons",
+            "Flapjack Atk",
+            "Side-Outs",
+          ],
+
+          // Default state
+          matchType: "doubles",
+          gameTo: 9,
+          winMode: "winBy2",
+          startingTeam: 0,
+          teams: [
+            { name: "A", points: 0, serverIndex: 1 },
+            { name: "B", points: 0, serverIndex: 1 },
+          ],
+          serverTeam: 0, // 0 or 1
+          currentServeCount: 0,
+          initialServeUsed: false,
+          locked: false,
+          winner: null,
+          history: [],
+          showSettings: false,
+          showHistory: false,
+          animatingTeam: null,
+
+          // Select random team names for Team A and Team B (ensuring they're different)
+          selectRandomTeamNames() {
+            const randomIndex = (arr, exclude = null) => {
+              let idx;
+              do {
+                idx = Math.floor(Math.random() * arr.length);
+              } while (exclude !== null && arr[idx] === exclude);
+              return idx;
+            };
+            const idxA = randomIndex(this.teamNamesList);
+            const idxB = randomIndex(
+              this.teamNamesList,
+              this.teamNamesList[idxA],
+            );
+            return [this.teamNamesList[idxA], this.teamNamesList[idxB]];
+          },
+
+          // Helpers
+          save() {
+            localStorage.setItem(
+              "pvd-state",
+              JSON.stringify({
+                matchType: this.matchType,
+                gameTo: this.gameTo,
+                winMode: this.winMode,
+                startingTeam: this.startingTeam,
+                teams: this.teams,
+                serverTeam: this.serverTeam,
+                currentServeCount: this.currentServeCount,
+                initialServeUsed: this.initialServeUsed,
+                locked: this.locked,
+                winner: this.winner,
+                history: this.history,
+                showSettings: this.showSettings,
+                showHistory: this.showHistory,
+              }),
+            );
+          },
+          load() {
+            const s = localStorage.getItem("pvd-state");
+            if (!s) {
+              // First load: set random team names
+              const [nameA, nameB] = this.selectRandomTeamNames();
+              this.teams[0].name = nameA;
+              this.teams[1].name = nameB;
+              return;
+            }
+            try {
+              const obj = JSON.parse(s);
+              this.matchType = obj.matchType || this.matchType;
+              this.gameTo = obj.gameTo || this.gameTo;
+              this.winMode = obj.winMode || this.winMode;
+              this.startingTeam =
+                typeof obj.startingTeam !== "undefined"
+                  ? obj.startingTeam
+                  : this.startingTeam;
+              this.teams = obj.teams || this.teams;
+              this.serverTeam =
+                typeof obj.serverTeam !== "undefined"
+                  ? obj.serverTeam
+                  : this.serverTeam;
+              this.currentServeCount = obj.currentServeCount || 0;
+              this.initialServeUsed = obj.initialServeUsed || false;
+              this.locked = obj.locked || false;
+              this.winner = obj.winner || null;
+              this.history = obj.history || [];
+              this.showSettings =
+                typeof obj.showSettings !== "undefined"
+                  ? obj.showSettings
+                  : this.showSettings;
+              this.showHistory =
+                typeof obj.showHistory !== "undefined"
+                  ? obj.showHistory
+                  : this.showHistory;
+            } catch (e) {
+              console.error("Failed to load state", e);
+            }
+
+            // Register keyboard shortcuts (ignore inputs)
+            window.addEventListener("keydown", (ev) => {
+              const tag = (ev.target && ev.target.tagName) || "";
+              if (
+                tag === "INPUT" ||
+                tag === "TEXTAREA" ||
+                ev.ctrlKey ||
+                ev.metaKey
+              )
+                return;
+              const key = ev.key.toLowerCase();
+              if (key === "1") {
+                this.addPoint(0);
+                ev.preventDefault();
+              }
+              if (key === "2") {
+                this.addPoint(1);
+                ev.preventDefault();
+              }
+              if (key === "3") {
+                this.lostServe();
+                ev.preventDefault();
+              }
+              if (key === "z") {
+                this.undo();
+                ev.preventDefault();
+              }
+              if (key === "r") {
+                this.resetMatch();
+                ev.preventDefault();
+              }
+            });
+          },
+
+          pushHistory(label) {
+            this.history.unshift({
+              label,
+              teams: JSON.parse(JSON.stringify(this.teams)),
+              serverTeam: this.serverTeam,
+              currentServeCount: this.currentServeCount,
+              initialServeUsed: this.initialServeUsed,
+              startingTeam: this.startingTeam,
+            });
+            // keep history limited
+            if (this.history.length > 50) this.history.pop();
+            this.save();
+          },
+
+          clearHistory() {
+            this.history = [];
+            this.locked = false;
+            this.winner = null;
+            this.serverTeam = this.startingTeam;
+            this.currentServeCount = 0;
+            this.initialServeUsed = false;
+            localStorage.removeItem("pvd-state");
+          },
+
+          teamPanelClasses(index) {
+            const isAnimating = this.animatingTeam === index;
+            const isServing = this.serverTeam === index;
+            const baseClasses =
+              index === 0
+                ? "bg-emerald-100 border-emerald-200"
+                : "bg-sky-100 border-sky-200";
+            let classes = isAnimating
+              ? baseClasses + " animate-flash-red"
+              : baseClasses;
+            if (isServing) {
+              classes =
+                index === 0
+                  ? "bg-emerald-100 border-dark-emerald scale-up"
+                  : "bg-sky-100 border-dark-sky scale-up";
+            }
+            return classes;
+          },
+
+          teamButtonClasses(index) {
+            return index === 0
+              ? "bg-emerald-600 hover:bg-emerald-700 text-white"
+              : "bg-sky-600 hover:bg-sky-700 text-white";
+          },
+
+          gameSettingsLabel() {
+            const winCondition =
+              this.winMode === "winBy2" ? "Win by 2" : "Hard Limit";
+            return `Game: ${this.gameTo} pts - ${winCondition} - ${this.matchType === "doubles" ? "Doubles" : "Singles"}`;
+          },
+
+          currentServerLabel() {
+            if (!this.teams[this.serverTeam]) return "No server";
+            const team = this.teams[this.serverTeam];
+            const serverNumber =
+              this.matchType === "doubles" ? team.serverIndex : 1;
+            const descriptor =
+              this.matchType === "doubles"
+                ? serverNumber === 1
+                  ? "1st server"
+                  : "2nd server"
+                : "serving";
+            return `${this.scoreLabel()} · ${team.name} · ${descriptor}`;
+          },
+
+          winnerSummary() {
+            return `Winner: ${this.winner} · ${this.scoreLabel()}`;
+          },
+
+          scoreLabel() {
+            const servingTeam = this.teams[this.serverTeam];
+            const receivingTeam = this.teams[1 - this.serverTeam];
+            const base = `${servingTeam.points}-${receivingTeam.points}`;
+            if (this.matchType === "doubles") {
+              return `${base}-${servingTeam.serverIndex}`;
+            }
+            return base;
+          },
+
+          setStartingTeam() {
+            this.serverTeam = this.startingTeam;
+            this.currentServeCount = 0;
+            this.initialServeUsed = false;
+            this.teams[0].serverIndex = 1;
+            this.teams[1].serverIndex = 1;
+            this.save();
+          },
+
+          addPoint(teamIndex) {
+            if (this.locked) return;
+
+            // If non-serving team scores, animate their panel
+            if (teamIndex !== this.serverTeam) {
+              this.animatingTeam = teamIndex;
+              setTimeout(() => {
+                this.animatingTeam = null;
+              }, 600);
+            }
+
+            this.pushHistory(
+              `+1 ${teamIndex === 0 ? this.teams[0].name : this.teams[1].name}`,
+            );
+            this.teams[teamIndex].points += 1;
+
+            // Check win condition
+            const a = this.teams[0].points;
+            const b = this.teams[1].points;
+            const max = Math.max(a, b);
+            const min = Math.min(a, b);
+
+            let winConditionMet = false;
+            if (this.winMode === "winBy2") {
+              winConditionMet = max >= this.gameTo && max - min >= 2;
+            } else if (this.winMode === "hardLimit") {
+              winConditionMet = max >= this.gameTo;
+            }
+
+            if (winConditionMet) {
+              this.locked = true;
+              this.winner = a > b ? this.teams[0].name : this.teams[1].name;
+            }
+
+            this.save();
+          },
+
+          lostServe() {
+            if (this.locked) return;
+            this.pushHistory(
+              `Lost serve (${this.teams[this.serverTeam].name}${this.teams[this.serverTeam].serverIndex})`,
+            );
+
+            if (this.matchType === "doubles") {
+              const isInitialServe =
+                this.serverTeam === this.startingTeam && !this.initialServeUsed;
+
+              if (isInitialServe) {
+                // Initial serve: only one serve allowed, so side-out immediately
+                this.serverTeam = 1 - this.serverTeam;
+                this.teams[this.serverTeam].serverIndex = 1;
+                this.initialServeUsed = true;
+              } else if (this.teams[this.serverTeam].serverIndex === 1) {
+                // 1st server lost serve: move to 2nd server on same team
+                this.teams[this.serverTeam].serverIndex = 2;
+              } else {
+                // 2nd server lost serve: side-out to other team's 1st server
+                this.serverTeam = 1 - this.serverTeam;
+                this.teams[this.serverTeam].serverIndex = 1;
+              }
+            } else {
+              // Singles: side-out immediately
+              this.serverTeam = 1 - this.serverTeam;
+            }
+
+            this.save();
+          },
+
+          decrementPoint(teamIndex) {
+            if (this.teams[teamIndex].points > 0) {
+              this.pushHistory(
+                `-1 ${teamIndex === 0 ? this.teams[0].name : this.teams[1].name}`,
+              );
+              this.teams[teamIndex].points -= 1;
+              this.locked = false;
+              this.winner = null;
+              this.save();
+            }
+          },
+
+          undo() {
+            if (this.history.length === 0) return;
+            const last = this.history.shift();
+            if (last && last.teams) {
+              this.teams = last.teams;
+              this.serverTeam = last.serverTeam;
+              this.currentServeCount = last.currentServeCount || 0;
+              this.initialServeUsed = last.initialServeUsed || false;
+              this.startingTeam = last.startingTeam || this.startingTeam;
+              this.locked = false;
+              this.winner = null;
+              this.save();
+            }
+          },
+
+          resetMatch() {
+            this.pushHistory("reset");
+            const [nameA, nameB] = this.selectRandomTeamNames();
+            this.teams = [
+              { name: nameA, points: 0, serverIndex: 1 },
+              { name: nameB, points: 0, serverIndex: 1 },
+            ];
+            this.serverTeam = this.startingTeam;
+            this.currentServeCount = 0;
+            this.initialServeUsed = false;
+            this.locked = false;
+            this.winner = null;
+            this.save();
+          },
+        };
+      }
+    </script>
+  </body>
+</html>
