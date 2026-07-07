@@ -435,6 +435,19 @@
                 typeof obj.showHistory !== "undefined"
                   ? obj.showHistory
                   : this.showHistory;
+
+              // Migration for older localStorage state showing 0-0-1 for starting doubles game
+              if (
+                this.matchType === "doubles" &&
+                !this.initialServeUsed &&
+                this.teams[0].points === 0 &&
+                this.teams[1].points === 0 &&
+                this.teams[this.startingTeam].serverIndex === 1
+              ) {
+                this.teams[this.startingTeam].serverIndex = 2;
+                this.teams[1 - this.startingTeam].serverIndex = 1;
+                this.save();
+              }
             } catch (e) {
               console.error("Failed to load state", e);
             }
