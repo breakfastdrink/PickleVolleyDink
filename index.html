@@ -348,7 +348,7 @@
           winMode: "hardLimit",
           startingTeam: 0,
           teams: [
-            { name: "A", points: 0, serverIndex: 1 },
+            { name: "A", points: 0, serverIndex: 2 },
             { name: "B", points: 0, serverIndex: 1 },
           ],
           serverTeam: 0, // 0 or 1
@@ -561,8 +561,13 @@
             this.serverTeam = this.startingTeam;
             this.currentServeCount = 0;
             this.initialServeUsed = false;
-            this.teams[0].serverIndex = 1;
-            this.teams[1].serverIndex = 1;
+            if (this.matchType === "doubles") {
+              this.teams[this.startingTeam].serverIndex = 2;
+              this.teams[1 - this.startingTeam].serverIndex = 1;
+            } else {
+              this.teams[0].serverIndex = 1;
+              this.teams[1].serverIndex = 1;
+            }
             this.save();
           },
 
@@ -670,15 +675,21 @@
               this.teams[1].name = nameB;
             }
             this.teams[0].points = 0;
-            this.teams[0].serverIndex = 1;
             this.teams[1].points = 0;
-            this.teams[1].serverIndex = 1;
 
             this.serverTeam = this.startingTeam;
             this.currentServeCount = 0;
             this.initialServeUsed = false;
             this.locked = false;
             this.winner = null;
+
+            if (this.matchType === "doubles") {
+              this.teams[this.startingTeam].serverIndex = 2;
+              this.teams[1 - this.startingTeam].serverIndex = 1;
+            } else {
+              this.teams[0].serverIndex = 1;
+              this.teams[1].serverIndex = 1;
+            }
             this.save();
           },
 
